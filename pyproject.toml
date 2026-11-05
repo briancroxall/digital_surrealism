@@ -1,0 +1,22 @@
+[project]
+name = "digital-surrealism"
+version = "0.1.0"
+description = "Tools for making Ferguson-style digital surrealism images (summed images and barcodes) from films"
+readme = "README.md"
+authors = [
+    { name = "Brian Croxall", email = "briancroxall@users.noreply.github.com" }
+]
+requires-python = ">=3.15"
+dependencies = []
+
+[project.scripts]
+digital-surrealism = "digital_surrealism:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

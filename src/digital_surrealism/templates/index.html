@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame Extractor</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --card: #ffffff; --text: #1d1d1b; --muted: #66645e;
+    --line: #dddad3; --accent: #2457a6; --accent-text: #ffffff;
+    --warn-bg: #fff4d6; --warn-line: #e0b84c; --error-bg: #fde8e6; --error-line: #d9655b;
+    --ok: #2e7d4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1b1a; --card: #262624; --text: #ecebe7; --muted: #a8a59e;
+      --line: #3d3c39; --accent: #6f9fe8; --accent-text: #10151d;
+      --warn-bg: #3a3220; --warn-line: #a8862e; --error-bg: #3d2523; --error-line: #c4625a;
+      --ok: #6cc28f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .steps { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 24px; padding: 0; list-style: none; }
+  .steps li { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+  .steps li.current { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .steps li.done { color: var(--ok); border-color: var(--ok); }
+  .steps li.clickable { padding: 0; }
+  .steps li.clickable button { border: 0; background: none; color: inherit; font: inherit; padding: 4px 12px; border-radius: 999px; }
+  .steps li.clickable:hover { background: var(--line); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .message { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; border: 1px solid; }
+  .error { background: var(--error-bg); border-color: var(--error-line); }
+  .warn { background: var(--warn-bg); border-color: var(--warn-line); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .previews { display: grid; gap: 16px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+  .pair figure { margin: 0; }
+  .pair img { width: 100%; display: block; border-radius: 4px; background: #000; }
+  .pair figcaption { font-size: .8rem; color: var(--muted); }
+  .nudges { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+  .nudge { border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+  .nudge strong { display: block; margin-bottom: 6px; }
+  .nudge button { padding: 4px 10px; font-size: .9rem; }
+  label.choice { display: block; padding: 12px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; cursor: pointer; }
+  progress { width: 100%; height: 20px; }
+  code { font-size: .9em; overflow-wrap: anywhere; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid var(--line);
+             border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 600px) { .pair { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Digital Surrealism: Frame Extractor</h1>
+  <p class="muted">Turns a film into a folder of frames, one every 2 seconds, with the black bars removed.</p>
+  <ol class="steps" id="steps"></ol>
+  <div id="message"></div>
+  <div id="screen"></div>
+</main>
+
+<script>
+const STEPS = ["Choose film", "Check crop", "Choose size", "Choose where to save", "Extract"];
+let status = null;
+const SCREENS = ["film", "crop", "size", "folder"];  // the steps of "review"
+let screen = "crop";
+let reached = 1;            // furthest step reached for this film
+let confirmingCancel = false;
+let working = false;        // waiting on a button's request
+
+const $ = (id) => document.getElementById(id);
+const esc = (text) => String(text).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+async function call(path, body) {
+  working = true; render();
+  try {
+    const response = await fetch(path, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body || {}),
+    });
+    if (response.ok && path !== "/api/cancel" && path !== "/api/show-in-finder") {
+      status = await response.json();
+    }
+  } finally {
+    working = false; render();
+  }
+}
+
+async function poll() {
+  try {
+    const response = await fetch("/api/status");
+    const fresh = await response.json();
+    const changed = JSON.stringify(fresh) !== JSON.stringify(status);
+    if (status && status.stage === "detecting" && fresh.stage === "review") { screen = "crop"; reached = 1; }
+    if (fresh.stage !== "extracting") confirmingCancel = false;
+    status = fresh;
+    // Redraw only when something changed, so previews don't flicker.
+    if (changed && !working) render();
+  } catch (error) {
+    $("message").innerHTML = '<div class="message error">Lost contact with the extractor. Is its Terminal window still open?</div>';
+  }
+  setTimeout(poll, 1000);
+}
+
+function currentStep() {
+  const stage = status.stage;
+  if (stage === "start") return 0;
+  if (stage === "detecting") return 1;
+  if (stage === "review") return SCREENS.indexOf(screen);
+  return 4;
+}
+
+function render() {
+  if (!status) return;
+  const step = currentStep();
+  $("steps").innerHTML = STEPS.map((name, i) => {
+    const kind = i === step ? "current" : i < step ? "done" : "";
+    // While reviewing, any step reached so far can be revisited.
+    if (status.stage === "review" && !working && i !== step && i <= reached) {
+      return `<li class="${kind} clickable"><button onclick="go(${i})">${i + 1}. ${name}</button></li>`;
+    }
+    return `<li class="${kind}">${i + 1}. ${name}</li>`;
+  }).join("");
+  $("message").innerHTML = status.error ? `<div class="message error">${esc(status.error)}</div>` : "";
+  const screens = {start: renderStart, detecting: renderDetecting, review: renderReview,
+                   extracting: renderExtracting, done: renderDone};
+  $("screen").innerHTML = screens[status.stage]();
+}
+
+function go(step) {
+  screen = SCREENS[step];
+  reached = Math.max(reached, step);
+  render();
+}
+
+function filmCard() {
+  const f = status.film;
+  return `<div class="card"><h2>${esc(f.name)}</h2><dl>
+    <dt>Type</dt><dd>${esc(f.kind)}, stored at ${esc(f.stored)} pixels</dd>
+    <dt>Shape</dt><dd>${esc(f.shape)}</dd>
+    <dt>Length</dt><dd>${f.minutes} minutes</dd></dl></div>`;
+}
+
+function renderStart() {
+  return `<div class="card"><h2>1. Choose the film</h2>
+    <p>Choose the MKV file that MakeMKV made from your disc.</p>
+    <div class="row"><button class="primary" onclick="call('/api/choose-film')" ${working ? "disabled" : ""}>
+      ${working ? "Waiting for Finder…" : "Choose film…"}</button></div></div>`;
+}
+
+function renderChangeFilm() {
+  return `<div class="card"><h2>1. Choose the film</h2>
+    <p>You're working on the film above. Choosing a different film starts over from the beginning.</p>
+    <div class="row"><button onclick="call('/api/choose-film')" ${working ? "disabled" : ""}>
+      ${working ? "Waiting for Finder…" : "Choose a different film…"}</button>
+      <button class="primary" onclick="go(1)" ${working ? "disabled" : ""}>Keep this film →</button></div></div>`;
+}
+
+function renderDetecting() {
+  return filmCard() + `<div class="card"><h2>2. Check the crop</h2>
+    <p><span class="spinner"></span>Looking for black bars at 30 moments in the film. This usually takes a few seconds.</p></div>`;
+}
+
+function renderReview() {
+  if (screen === "film") return filmCard() + renderChangeFilm();
+  if (screen === "size") return filmCard() + renderSize();
+  if (screen === "folder") return filmCard() + renderFolder();
+  return filmCard() + renderCrop();
+}
+
+function renderCrop() {
+  const d = status.detection, m = status.margins;
+  const edited = status.crop !== d.crop;
+  let summary;
+  if (d.usable === 0) {
+    summary = `<div class="message warn">Every sample was too dark to read, so nothing is cropped yet.
+      Use the buttons below to trim the black bars by hand.</div>`;
+  } else if (!d.confident) {
+    summary = `<div class="message warn">Only ${d.agreeing} of ${d.usable} samples agreed on where the black bars are.
+      Look closely at the previews and adjust the edges if needed.</div>`;
+  } else {
+    summary = `<p>${d.agreeing} of ${d.usable} samples agreed on where the black bars are` +
+      (d.total > d.usable ? ` (${d.total - d.usable} samples were too dark to use).` : ".") + `</p>`;
+  }
+  const edge = (name, label) => `<div class="nudge"><strong>${label}: ${m[name]} px cut</strong>
+    <button onclick="call('/api/nudge', {edge: '${name}', pixels: 2})" ${working ? "disabled" : ""}>Cut 2 px more</button>
+    <button onclick="call('/api/nudge', {edge: '${name}', pixels: -2})" ${working ? "disabled" : ""}>Cut 2 px less</button></div>`;
+  const pairs = status.previews.map((p, i) => `<div class="pair">
+    <figure><img src="${p.boxed}" alt="Moment ${i + 1}, full frame with crop box"><figcaption>Moment ${i + 1}: red box = what will be kept</figcaption></figure>
+    <figure><img src="${p.cropped}" alt="Moment ${i + 1}, cropped"><figcaption>After cropping</figcaption></figure></div>`).join("");
+  return `<div class="card"><h2>2. Check the crop</h2>${summary}
+    <p>In every pair, the cropped picture on the right should have <strong>no black bars</strong> and
+      <strong>no missing picture</strong>. Dark scenes can make this hard to judge; go by the bright ones.</p>
+    <div class="previews">${pairs}</div>
+    <h2 style="margin-top:20px">Adjust the edges (only if needed)</h2>
+    <p class="muted">Pixels are counted in the film's stored size.${working ? " <span class='spinner'></span>Redrawing previews…" : ""}</p>
+    <div class="nudges">${edge("top", "Top")}${edge("bottom", "Bottom")}${edge("left", "Left")}${edge("right", "Right")}</div>
+    <div class="row">
+      ${edited ? `<button onclick="call('/api/reset-crop')" ${working ? "disabled" : ""}>Undo my changes</button>` : ""}
+      <button class="primary" onclick="go(2)" ${working ? "disabled" : ""}>The crop looks right →</button>
+    </div></div>`;
+}
+
+function renderSize() {
+  let choices;
+  if (status.can_full_res) {
+    choices = `
+      <label class="choice"><input type="radio" name="size" ${status.full_res ? "" : "checked"}
+        onchange="call('/api/size', {full_res: false})"> <strong>DVD size</strong> (recommended).
+        Scaled down to match DVDs, so everyone's frames are comparable.</label>
+      <label class="choice"><input type="radio" name="size" ${status.full_res ? "checked" : ""}
+        onchange="call('/api/size', {full_res: true})"> <strong>Full resolution.</strong>
+        Sharper, but the frames folder is about 4–5 times larger and making images from it is slower.</label>`;
+  } else {
+    choices = `<p>This film is DVD size, so the frames are saved at DVD size.</p>`;
+  }
+  return `<div class="card"><h2>3. Choose a size</h2>${choices}
+    <p>You'll get about <strong>${status.frame_count.toLocaleString()} frames</strong>,
+      each <strong>${status.frame_size}</strong> pixels, roughly <strong>${status.estimate}</strong> in all.</p>
+    <div class="row"><button onclick="go(1)">← Back to the crop</button>
+      <button class="primary" onclick="go(3)" ${working ? "disabled" : ""}>Next →</button></div></div>`;
+}
+
+function renderFolder() {
+  const chosen = status.out_dir ? `<p>Frames will be saved in a new folder:<br><code>${esc(status.out_dir)}</code></p>` : "";
+  const space = status.space_warning ? `<div class="message warn">${esc(status.space_warning)}</div>` : "";
+  return `<div class="card"><h2>4. Choose where to save</h2>
+    <p>Choose a place (for example, your Desktop). A folder named after the film will be made there.</p>
+    ${chosen}${space}
+    <div class="row"><button onclick="go(2)">← Back</button>
+      <button onclick="call('/api/choose-folder')" ${working ? "disabled" : ""}>
+        ${working ? "Waiting for Finder…" : status.out_dir ? "Choose a different place…" : "Choose a place…"}</button>
+      ${status.out_dir ? `<button class="primary" onclick="call('/api/extract')" ${working ? "disabled" : ""}>Start extracting</button>` : ""}
+    </div></div>`;
+}
+
+function formatTime(seconds) {
+  if (seconds == null) return "working it out…";
+  if (seconds < 60) return "less than a minute";
+  const minutes = Math.round(seconds / 60);
+  return `about ${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
+function renderExtracting() {
+  const p = status.progress || {fraction: 0, frames_saved: 0, seconds_left: null};
+  const controls = confirmingCancel
+    ? `<div class="message warn"><strong>Stop extracting?</strong> The ${p.frames_saved.toLocaleString()} frames
+         saved so far will be deleted, and you'll need to start again.
+         <div class="row"><button class="primary" onclick="confirmingCancel=false; render()">Keep extracting</button>
+         <button onclick="call('/api/cancel')">Stop and delete</button></div></div>`
+    : `<div class="row"><button onclick="confirmingCancel=true; render()">Cancel…</button></div>`;
+  return filmCard() + `<div class="card"><h2>5. Extracting frames</h2>
+    <progress value="${p.fraction}" max="1"></progress>
+    <p>${Math.floor(p.fraction * 100)}% done, ${p.frames_saved.toLocaleString()} of about
+      ${status.frame_count.toLocaleString()} frames saved. Time left: ${formatTime(p.seconds_left)}.</p>
+    <p class="muted">Saving to <code>${esc(status.out_dir)}</code>. You can close this page; reopen it to check on progress.</p>
+    ${controls}</div>`;
+}
+
+function renderDone() {
+  const r = status.result;
+  const next = status.image_maker_url
+    ? `<p>Next, open the <a href="${esc(status.image_maker_url)}" target="_blank">Image maker</a> and choose this folder.</p>`
+    : `<p class="muted">Next you'll make the summed image and barcodes with the Image maker (coming soon).</p>`;
+  return filmCard() + `<div class="card"><h2>Done</h2>
+    <p>Saved <strong>${r.count.toLocaleString()} frames</strong> to<br><code>${esc(r.out_dir)}</code></p>
+    ${next}
+    <div class="row"><button class="primary" onclick="call('/api/show-in-finder')">Show in Finder</button>
+      <button onclick="call('/api/start-over')">Extract another film</button></div></div>`;
+}
+
+poll();
+</script>
+</body>
+</html>

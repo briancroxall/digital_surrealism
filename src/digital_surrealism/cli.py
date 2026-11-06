@@ -47,13 +47,18 @@ def main(argv: list[str] | None = None) -> None:
     extract.add_argument("--full-res", action="store_true",
                          help="don't scale down to DVD size")
 
+    sub.add_parser("app", help="open the extractor in your web browser")
+
     args = parser.parse_args(argv)
 
-    if args.command == "detect":
+    if args.command == "app":
+        from .app import serve
+        serve()
+    elif args.command == "detect":
         info, crop = describe(args.film, args.full_res, None)
         if args.previews:
-            for out in render_previews(args.film, info, crop, args.previews):
-                print(f"Preview: {out}")
+            for boxed, cropped in render_previews(args.film, info, crop, args.previews):
+                print(f"Preview: {boxed} (cropped: {cropped.name})")
     else:
         info, crop = describe(args.film, args.full_res, args.crop)
 

@@ -107,25 +107,35 @@ def detect_crop(path: Path, info: VideoInfo) -> CropResult:
 
 def render_previews(
     path: Path, info: VideoInfo, crop: Crop, out_dir: Path, count: int = 6
-) -> list[Path]:
-    """Save full frames with the crop drawn as a red box, pixels made square."""
+) -> list[tuple[Path, Path]]:
+    """Save preview pairs, pixels made square.
+
+    For each moment: the full frame with the crop drawn as a red box
+    (preview_N.png), and the picture as it will be cropped
+    (preview_N_cropped.png). The second shows the crop even where a red box
+    would vanish against red scenery.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
-    width = round(info.display_width)
+    full_width = round(info.display_width)
+    crop_width = round(crop.w * info.sar)
     outputs = []
     for i, seconds in enumerate(sample_times(info.duration, count), start=1):
-        out = out_dir / f"preview_{i}.png"
+        boxed = out_dir / f"preview_{i}.png"
+        cropped = out_dir / f"preview_{i}_cropped.png"
         subprocess.run(
             [
                 "ffmpeg", "-v", "error", "-nostdin", "-y",
                 "-ss", f"{seconds:.3f}", "-i", str(path),
-                "-map", "0:v:0", "-frames:v", "1",
-                "-vf", (
-                    f"drawbox=x={crop.x}:y={crop.y}:w={crop.w}:h={crop.h}"
-                    f":color=red:t=3,scale={width}:{info.height},setsar=1"
+                "-filter_complex", (
+                    "[0:v:0]split[a][b];"
+                    f"[a]drawbox=x={crop.x}:y={crop.y}:w={crop.w}:h={crop.h}"
+                    f":color=red:t=3,scale={full_width}:{info.height},setsar=1[boxed];"
+                    f"[b]crop={crop},scale={crop_width}:{crop.h},setsar=1[cropped]"
                 ),
-                str(out),
+                "-map", "[boxed]", "-frames:v", "1", str(boxed),
+                "-map", "[cropped]", "-frames:v", "1", str(cropped),
             ],
             check=True,
         )
-        outputs.append(out)
+        outputs.append((boxed, cropped))
     return outputs

@@ -19,6 +19,10 @@ FRAMES_PER_SECOND = 0.5
 DVD_HEIGHT = 480
 
 
+class ExtractionStopped(Exception):
+    """Raised when extraction is stopped partway (for example, by Cancel)."""
+
+
 def output_size(info: VideoInfo, crop: Crop, full_res: bool = False) -> tuple[int, int]:
     """Pixel size of each saved frame.
 
@@ -54,8 +58,13 @@ def extract_frames(
     out_dir: Path,
     full_res: bool = False,
     on_progress: Callable[[float], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> int:
-    """Write frame_0001.png, frame_0002.png, ... to out_dir. Returns the count."""
+    """Write frame_0001.png, frame_0002.png, ... to out_dir. Returns the count.
+
+    If `should_stop` returns True, ffmpeg is stopped and ExtractionStopped is
+    raised. Frames already written are left for the caller to deal with.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     if any(out_dir.glob("frame_*.png")):
         raise FileExistsError(
@@ -75,12 +84,20 @@ def extract_frames(
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
     # ffmpeg writes "out_time_us=<microseconds>" lines as it works.
+    stopped = False
     for line in process.stdout:
+        if should_stop and should_stop():
+            process.terminate()
+            stopped = True
+            break
         if on_progress and line.startswith("out_time_us="):
             value = line.split("=", 1)[1].strip()
             if value.isdigit():
                 on_progress(min(1.0, int(value) / 1e6 / info.duration))
     errors = process.stderr.read()
+    if stopped:
+        process.wait()
+        raise ExtractionStopped
     if process.wait() != 0:
         raise RuntimeError(f"ffmpeg failed:\n{errors}")
     if on_progress:

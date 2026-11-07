@@ -16,7 +16,7 @@ Students start with an MKV ripped by MakeMKV and end with:
 | Part | What it does | Status |
 |---|---|---|
 | Frame extractor (local, lab Macs) | MKV → cropped, square-pixel frames | Command line and web interface done; lab launcher next |
-| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Not started |
+| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Summed image done; barcodes and saving next |
 
 ## Frame extractor
 
@@ -169,6 +169,104 @@ All three captured the same moments of the film, and once their size and
 cropping were matched, the pixels agreed closely. Frames made the older ways
 (including summed images from past semesters) are squeezed horizontally.
 
+## Image maker
+
+A web page (`web/`) that turns a folder of frames into a summed image (and,
+soon, barcodes). Everything happens in the browser on the student's own
+computer; no frames are uploaded. It will be published on GitHub Pages. Until
+then, run it locally:
+
+```
+uv run python -m http.server 8000 -d web -b 127.0.0.1
+```
+
+then open <http://127.0.0.1:8000>. (Opening `index.html` straight from Finder
+doesn't work: browsers only run the page's background worker from a web
+address.) Press Control-C to stop the server.
+
+Choose the frames folder, then click **Make summed image**. The page uses
+every PNG in the folder, sorted by number (`frame_2` before `frame_10`), and
+stops with a message if the frames aren't all the same size.
+
+### The summed image
+
+The page:
+
+1. **Averages the frames.** For every pixel, it adds up the red, green, and
+   blue values of all the frames and divides by the number of frames.
+2. **Stretches each colour separately.** An average is dim and low in
+   contrast. For the F4 DVD, for example, red in the average ran only from
+   about 40 to 76 (on a 0–255 scale). Each colour's darkest value becomes 0 and
+   its brightest becomes 255, with everything in between spaced evenly, then
+   rounded to whole numbers. A red value of 58 (halfway from 40 to 76) becomes
+   about 128.
+
+Because each colour is stretched by its own amount, the result is also
+colour-balanced, not just brightened: a film with a blue cast loses some of
+it. That is an interpretive choice built into the method, inherited from the
+recipe below. If a colour is perfectly flat (the same everywhere), it is left
+as it is.
+
+On the page, "How this image was made" lists each colour's range before
+stretching.
+
+**Relation to the ImageMagick recipe used in past semesters.** Earlier
+classes made summed images with:
+
+```
+magick frames/*.png -channel R -evaluate-sequence Mean -auto-level split_avg_R.jpg
+magick frames/*.png -channel G -average -auto-level split_avg_G.jpg
+magick frames/*.png -channel B -average -auto-level split_avg_B.jpg
+magick split_avg_* -evaluate-sequence Mean -auto-level split_avg_RGB.png
+```
+
+The first three commands each average the frames, keep only one colour
+(ImageMagick sets the other two to zero), and stretch it from 0 to 255
+(`-auto-level` is a straight-line stretch). The last command averages the
+three one-colour images, which divides each colour by 3, and stretches again,
+which multiplies it back, so it simply reassembles the three stretched
+colours. The net effect is steps 1–2 above.
+
+We checked this on 344 frames of the F4 DVD (2026-11-06). Running the recipe
+with PNGs in place of the JPGs gave exactly the same image as steps 1–2 (no
+pixel differed). The JPG files in the recipe only add compression error: on
+average 2.9 out of 255, 99% of values within 10, at most 20. The Image maker
+leaves that error out. (`-average` is an older name for
+`-evaluate-sequence Mean`.)
+
+### Why the Image maker ignores colour labels
+
+A PNG file can carry a label saying which colour standard its numbers are in.
+Frames made by ffmpeg from a HandBrake MP4 are labelled as NTSC video colour
+(the standard for DVDs). Frames our extractor made from the F4 MKV have no
+label, because the MKV doesn't record a colour standard, but other discs
+(Blu-rays especially) often do.
+
+Browsers treat the label differently. Chrome, Firefox, and Brave give the page
+the numbers stored in the file, as asked. Safari converts the colours from the
+labelled standard to the one it uses for display, which changes the numbers
+slightly. On the 3,442 labelled F4 frames (2026-11-07), Safari's summed image
+differed from Chrome's in 54% of its colour values, by up to 6 out of 255, and
+every colour's range before stretching was 1.5–2.7 points lower.
+
+For this method the frames are data, not pictures to display: ImageMagick's
+recipe, Python, Chrome, and Firefox all use the stored numbers, and every
+student should get the same image whatever browser they use. So the Image
+maker removes the label from its in-memory copy of each frame before reading
+it (the files themselves are not changed). The page reports how many frames
+had a label under "How this image was made."
+
+With labels removed, Chrome, Firefox, and Safari each matched the Python
+reference exactly on the F4 frames: no pixel differed. (Brave, which is built
+on Chrome, showed the same colour ranges as Chrome on the page but wasn't
+put through the pixel-by-pixel check.)
+We tested this by checking removal on its own first. Safari matched exactly
+on 344 frames with their labels removed and differed by up to 7 on the same
+frames with labels kept.
+
+The labels removed are `cICP`, `cHRM`, `gAMA`, `iCCP`, `sRGB`, `mDCV`, and
+`cLLI` (`web/png.js`).
+
 ## Development
 
 ```
@@ -181,3 +279,27 @@ frame counts. The web interface tests (`tests/test_app.py`) run the whole
 five-step flow, with the Finder windows replaced by fixed answers, and check
 nudging, refused folders, and that cancelling deletes only the tool's own
 frames. The Finder windows themselves have to be tried by hand.
+
+The Image maker's arithmetic has a Python twin, `tools/reference.py`, tested in
+`tests/test_reference.py` with a small example worked out by hand. To check the
+browser against it on any frames folder:
+
+```
+uv run tools/browser_check.py FRAMES_FOLDER
+```
+
+This runs the page's real code (`web/worker.js`) in headless Chrome and
+compares the result pixel by pixel. Add `--browser manual` to get a web address
+to open in Safari or Firefox instead. On the 3,442 F4 frames (HandBrake
+frames, labelled with a colour standard), Chrome, Firefox, and Safari each
+matched the Python reference exactly (no pixel differed). Reading and summing
+took about 14 seconds in Chrome and Firefox and 27 in Safari. The script also
+reports how many frames had a colour label removed.
+
+The checking server tells browsers not to cache, and the check page loads the
+worker from a new address each run, because Safari otherwise kept running an
+old cached copy of `web/worker.js` after it was changed. The same can happen
+with the real page while testing locally: in Safari, use Develop → Empty
+Caches (or a Private window) after changing the page's code. GitHub Pages lets
+browsers cache files for only 10 minutes, so students will get updates soon
+after they're published.

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Maker</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --card: #ffffff; --text: #1d1d1b; --muted: #66645e;
+    --line: #dddad3; --accent: #2457a6; --accent-text: #ffffff;
+    --error-bg: #fde8e6; --error-line: #d9655b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1b1a; --card: #262624; --text: #ecebe7; --muted: #a8a59e;
+      --line: #3d3c39; --accent: #6f9fe8; --accent-text: #10151d;
+      --error-bg: #3d2523; --error-line: #c4625a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .button { display: inline-block; font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--line);
+            background: var(--card); color: var(--text); cursor: pointer; text-decoration: none; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .error { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; border: 1px solid var(--error-line); background: var(--error-bg); }
+  progress { width: 100%; height: 20px; }
+  img.result { width: 100%; display: block; border-radius: 4px; margin-top: 8px; }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td, th { padding: 2px 12px 2px 0; text-align: left; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Digital Surrealism: Image Maker</h1>
+  <p class="muted">Turns a folder of frames into a summed image. Your frames stay on this computer; nothing is uploaded.</p>
+
+  <div id="error" class="error" hidden></div>
+
+  <div class="card">
+    <h2>1. Choose the frames folder</h2>
+    <p>Choose the folder the Frame Extractor made (for example, <code>f4_first-steps_frames</code>).</p>
+    <label class="button primary" for="folder">Choose folder…</label>
+    <input type="file" id="folder" webkitdirectory multiple>
+    <p id="found" hidden></p>
+  </div>
+
+  <div class="card" id="make-card" hidden>
+    <h2>2. Make the summed image</h2>
+    <button class="button primary" id="make">Make summed image</button>
+    <div id="working" hidden>
+      <progress id="progress" value="0" max="1"></progress>
+      <p id="progress-text"></p>
+    </div>
+  </div>
+
+  <div class="card" id="result-card" hidden>
+    <h2>3. Your summed image</h2>
+    <p id="result-text"></p>
+    <img class="result" id="result" alt="Summed image">
+    <div class="row"><a class="button primary" id="save">Save summed image</a></div>
+    <details style="margin-top:16px">
+      <summary>How this image was made</summary>
+      <p>Every frame was averaged into one image. An average is dim and low in contrast, so each colour
+         was then stretched separately: its darkest value became 0 and its brightest became 255.
+         Before stretching, the average frame's colours ranged:</p>
+      <table id="ranges"></table>
+      <p id="labels"></p>
+    </details>
+  </div>
+</main>
+
+<script type="module">
+import {byFrameOrder} from "./summing.js";
+
+const $ = (id) => document.getElementById(id);
+let frames = [];
+let folderName = "";
+let resultUrl = null;
+
+function showError(message) {
+  $("error").textContent = message;
+  $("error").hidden = !message;
+}
+
+$("folder").addEventListener("change", (event) => {
+  showError("");
+  $("result-card").hidden = true;
+  const files = [...event.target.files];
+  frames = files
+    .filter((file) => file.name.toLowerCase().endsWith(".png") && !file.name.startsWith("."))
+    .sort((a, b) => byFrameOrder(a.name, b.name));
+  folderName = files.length ? files[0].webkitRelativePath.split("/")[0] : "";
+  if (!frames.length) {
+    $("found").hidden = true;
+    $("make-card").hidden = true;
+    showError("That folder has no PNG frames in it. Choose the folder the Frame Extractor made.");
+    return;
+  }
+  $("found").hidden = false;
+  $("found").innerHTML = `Found <strong>${frames.length.toLocaleString()} frames</strong> in
+    <code></code>, from ${frames[0].name} to ${frames.at(-1).name}.`;
+  $("found").querySelector("code").textContent = folderName;
+  $("make-card").hidden = false;
+  $("make").disabled = false;
+  $("working").hidden = true;
+});
+
+$("make").addEventListener("click", () => {
+  showError("");
+  $("make").disabled = true;
+  $("result-card").hidden = true;
+  $("working").hidden = false;
+  const started = performance.now();
+  const worker = new Worker("./worker.js", {type: "module"});
+  worker.onmessage = ({data}) => {
+    if (data.type === "progress") {
+      $("progress").value = data.done / data.total;
+      $("progress-text").textContent = `Read ${data.done.toLocaleString()} of ${data.total.toLocaleString()} frames.`;
+    } else if (data.type === "error") {
+      worker.terminate();
+      showError(data.message);
+      $("working").hidden = true;
+      $("make").disabled = false;
+    } else if (data.type === "done") {
+      worker.terminate();
+      const seconds = (performance.now() - started) / 1000;
+      showResult(data, seconds);
+    }
+  };
+  worker.postMessage({files: frames, names: frames.map((file) => file.name)});
+});
+
+function showResult({png, width, height, count, ranges, labelled}, seconds) {
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = URL.createObjectURL(png);
+  $("result").src = resultUrl;
+  $("save").href = resultUrl;
+  $("save").download = `${folderName}_summed.png`;
+  $("result-text").textContent =
+    `The average of ${count.toLocaleString()} frames, ${width} × ${height} pixels ` +
+    `(made in ${seconds.toFixed(0)} seconds).`;
+  $("ranges").innerHTML = "<tr><th>Colour</th><th>Darkest</th><th>Brightest</th></tr>" +
+    ["Red", "Green", "Blue"].map((name, i) =>
+      `<tr><td>${name}</td><td>${ranges[i].low.toFixed(1)}</td><td>${ranges[i].high.toFixed(1)}</td></tr>`).join("");
+  $("labels").textContent = labelled
+    ? `${labelled.toLocaleString()} of the frames were labelled with a colour standard. The label was ` +
+      `ignored, so every browser uses the numbers stored in the frames and makes the same image.`
+    : "";
+  $("working").hidden = true;
+  $("result-card").hidden = false;
+  window.__summedResult = {png, width, height, count, ranges, seconds};  // for automated checks
+}
+</script>
+</body>
+</html>

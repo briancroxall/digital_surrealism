@@ -3,7 +3,11 @@
 Tools for students in *Introduction to Digital Humanities* to make "digital
 surrealism" images of a film, following Kevin L. Ferguson, ["Digital
 Surrealism: Visualizing Walt Disney Animation Studios"](https://dhq.digitalhumanities.org/vol/11/1/000276/000276.html)
-(*DHQ* 11.1, 2017).
+(*DHQ* 11.1, 2017) and ["To Cite or to Steal? When a Scholarly Project Turns Up in a Gallery"](https://hyperallergic.com/to-cite-or-to-steal-when-a-scholarly-project-turns-up-in-a-gallery/) (Hyperallergic, 30 June 2016). 
+
+Rather than using Ferguson's exact process, however, this small application uses `FFMPEG` to extract one frame from every two seconds of video (Ferguson uses Quicktime) and then uses JavaScript to create a summed image (Ferguson uses ImageJ). The summing process also produces bar codes of the film, which is an innovation that I believe I picked up from my colleague, Jeremy Browne. 
+
+This application was developed using Claude Code. Since I have been using an assignment based on Ferguson's work for nine years, I'm well acquainted with the pain points for my students, and this instantiation will hopefully eliminate as many of those as possible.
 
 Students start with an MKV ripped by MakeMKV and end with:
 

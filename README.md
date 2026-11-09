@@ -395,6 +395,26 @@ uv run tools/browser_check.py FRAMES_FOLDER --web /tmp/site
 On the 3,442 F4 frames, 2026-11-09, the stamped copy matched the Python
 reference exactly in headless Chrome.
 
+**The lab launcher** (`lab/Digital Surrealism.command`) is a short shell
+script. Things it does that aren't obvious:
+
+- It adds Homebrew's and uv's folders to the PATH, because programs opened
+  from Finder don't get the usual command-line setup.
+- It keeps each account's Python and Flask in
+  `~/Library/Caches/digital-surrealism/venv` instead of `.venv` in the repo,
+  so the repo can sit read-only in `/Users/Shared`. It runs with `--frozen`
+  (use `uv.lock` as is, never rewrite it) and `--no-dev` (skip the testing
+  tools).
+- It finds the repo from its own location, so it must stay in `lab/`; a Finder
+  alias works, a copy doesn't (and says so).
+
+Tested on Brian's Mac, 2026-11-09: a fresh, empty home folder with the repo
+read-only, and uv made to download its own Python (27 MB): ready in 4 seconds.
+Also tested: missing ffmpeg, missing uv, a copied launcher, Control-C, opening
+through a Finder alias, and opening it a second time while it's running. Not
+tested: a real lab Mac, a student account, or macOS's "unidentified developer"
+check.
+
 ## Publishing the Image maker
 
 GitHub publishes `web/` to <https://briancroxall.github.io/digital_surrealism/>
@@ -422,22 +442,6 @@ during class.
 and check the Actions tab. When the run shows a green check, the new version
 is published.
 
-**The lab launcher** (`lab/Digital Surrealism.command`) is a short shell
-script. Things it does that aren't obvious:
+## License
 
-- It adds Homebrew's and uv's folders to the PATH, because programs opened
-  from Finder don't get the usual command-line setup.
-- It keeps each account's Python and Flask in
-  `~/Library/Caches/digital-surrealism/venv` instead of `.venv` in the repo,
-  so the repo can sit read-only in `/Users/Shared`. It runs with `--frozen`
-  (use `uv.lock` as is, never rewrite it) and `--no-dev` (skip the testing
-  tools).
-- It finds the repo from its own location, so it must stay in `lab/`; a Finder
-  alias works, a copy doesn't (and says so).
-
-Tested on Brian's Mac, 2026-11-09: a fresh, empty home folder with the repo
-read-only, and uv made to download its own Python (27 MB): ready in 4 seconds.
-Also tested: missing ffmpeg, missing uv, a copied launcher, Control-C, opening
-through a Finder alias, and opening it a second time while it's running. Not
-tested: a real lab Mac, a student account, or macOS's "unidentified developer"
-check.
+MIT. See [LICENSE](LICENSE).

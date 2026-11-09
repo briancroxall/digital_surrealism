@@ -15,7 +15,7 @@ Students start with an MKV ripped by MakeMKV and end with:
 
 | Part | What it does | Status |
 |---|---|---|
-| Frame extractor (local, lab Macs) | MKV → cropped, square-pixel frames | Command line and web interface done; lab launcher next |
+| Frame extractor (local, lab Macs) | MKV → cropped, square-pixel frames | Done: command line, web interface, and lab launcher |
 | Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Done; publishing on GitHub Pages later |
 
 ## Frame extractor
@@ -24,6 +24,12 @@ Requires [ffmpeg](https://ffmpeg.org) and [uv](https://docs.astral.sh/uv/).
 Runs on macOS.
 
 ### In the browser (for students)
+
+On a lab Mac, double-click **Digital Surrealism** on the Desktop. That's
+`lab/Digital Surrealism.command`, which runs the command below for you.
+Setting up a Mac for this is in [lab/INSTALL.md](lab/INSTALL.md).
+
+Or, from the repo folder in Terminal:
 
 ```
 uv run digital-surrealism app
@@ -366,3 +372,23 @@ cache first (Develop → Empty Caches) or use a Private window. GitHub Pages
 lets browsers cache files for only 10 minutes, so published updates reach
 students soon, but a student could briefly get a mix of old and new files. How
 to prevent that is a decision for when we publish.
+
+**The lab launcher** (`lab/Digital Surrealism.command`) is a short shell
+script. Things it does that aren't obvious:
+
+- It adds Homebrew's and uv's folders to the PATH, because programs opened
+  from Finder don't get the usual command-line setup.
+- It keeps each account's Python and Flask in
+  `~/Library/Caches/digital-surrealism/venv` instead of `.venv` in the repo,
+  so the repo can sit read-only in `/Users/Shared`. It runs with `--frozen`
+  (use `uv.lock` as is, never rewrite it) and `--no-dev` (skip the testing
+  tools).
+- It finds the repo from its own location, so it must stay in `lab/`; a Finder
+  alias works, a copy doesn't (and says so).
+
+Tested on Brian's Mac, 2026-11-09: a fresh, empty home folder with the repo
+read-only, and uv made to download its own Python (27 MB): ready in 4 seconds.
+Also tested: missing ffmpeg, missing uv, a copied launcher, Control-C, opening
+through a Finder alias, and opening it a second time while it's running. Not
+tested: a real lab Mac, a student account, or macOS's "unidentified developer"
+check.

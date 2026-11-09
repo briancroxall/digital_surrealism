@@ -20,7 +20,7 @@ Students start with an MKV ripped by MakeMKV and end with:
 | Part | What it does | Status |
 |---|---|---|
 | Frame extractor (local, lab Macs) | MKV → cropped, square-pixel frames | Done: command line, web interface, and lab launcher |
-| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Done; publishing set up, first publish pending |
+| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Done; published 2026-11-09 |
 
 ## Frame extractor
 

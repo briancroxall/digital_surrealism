@@ -8,7 +8,7 @@ Since I have been using an assignment (the 2025 version is [here](https://brianc
 Rather than using Ferguson's exact process, however, this small application uses `FFMPEG` to extract one frame from every two seconds of video (Ferguson uses QuickTime) and then uses JavaScript to create a summed image (Ferguson uses ImageJ). The summing process also produces barcodes of the film, which is an innovation that I believe I picked up from my colleague, [Jeremy Browne](https://hum.byu.edu/directory/jeremy-browne). Browne showed me how he had simplified Ferguson's process using FFMPEG and ImageMagick to achieve nearly identical results but without the overhead of GUI. 
 
 ### AI Disclaimer
-This application was developed in November 2026 using Claude Code (Opus 5.5). I provided prompts to Claude Code based on the assignment and oversaw the decisions that were made along the way. I have tested everything myself, and I take responsibility for the code—-even if it would have taken me the rest of my life to do this on my own. Put differently, **I take responsibility, but I take no credit**. 
+These tools were developed in November 2026 using Claude Code (Opus 5.5). I provided prompts to Claude Code based on the assignment and oversaw the decisions that were made along the way. I have tested everything myself, and I take responsibility for the code—-even if it would have taken me the rest of my life to do this on my own. Put differently, **I take responsibility, but I take no credit**. 
 
 # Documentation, Written by Claude Code
 Students start with an MKV ripped by MakeMKV and end with:

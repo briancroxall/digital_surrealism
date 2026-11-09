@@ -198,7 +198,10 @@ them together, named after the frames folder:
 - `<folder>_barcode_average.png`
 
 In Chrome and Edge, "Save all four" asks for a folder and writes the files
-straight into it, asking first if any of those files are already there. Safari,
+straight into it, asking first if any of those files are already there. Chrome
+won't let a page write straight into Downloads, Documents, or Desktop (it says
+they contain system files), so choose or make a folder inside one of them; the
+page says so under the button. Safari,
 Firefox, and Brave don't allow pages to write into folders (Brave turns it
 off), so there the button downloads the four files to the Downloads folder.
 Safari may ask once whether to allow several downloads. Saving again downloads

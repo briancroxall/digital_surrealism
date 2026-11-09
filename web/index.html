@@ -81,6 +81,9 @@
       <button class="button primary" id="save-all">Save all four…</button>
       <span id="save-status"></span>
     </div>
+    <p class="muted" id="folder-hint" hidden>Chrome won't save straight into
+      Downloads, Documents, or Desktop. Choose or make a folder inside one of
+      them (the dialog has a New Folder button).</p>
     <div id="confirm" class="message warn" hidden>
       <p id="confirm-text"></p>
       <div class="row"><button class="button primary" id="replace">Replace them</button>
@@ -233,6 +236,7 @@ function showResult(result, seconds) {
 // browsers (Safari, Firefox, Brave) download the four files instead.
 
 let pendingFolder = null;
+$("folder-hint").hidden = !window.showDirectoryPicker;
 
 $("save-all").addEventListener("click", async () => {
   $("save-status").textContent = "";

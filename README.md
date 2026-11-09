@@ -16,7 +16,7 @@ Students start with an MKV ripped by MakeMKV and end with:
 | Part | What it does | Status |
 |---|---|---|
 | Frame extractor (local, lab Macs) | MKV → cropped, square-pixel frames | Done: command line, web interface, and lab launcher |
-| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Done; publishing on GitHub Pages later |
+| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Done; publishing set up, first publish pending |
 
 ## Frame extractor
 
@@ -179,8 +179,11 @@ cropping were matched, the pixels agreed closely. Frames made the older ways
 
 A web page (`web/`) that turns a folder of frames into a summed image and
 three barcodes. Everything happens in the browser on the student's own
-computer; no frames are uploaded. It will be published on GitHub Pages. Until
-then, run it locally:
+computer; no frames are uploaded. It's published at
+<https://briancroxall.github.io/digital_surrealism/> (see "Publishing the
+Image maker" below), and the extractor's Done screen links to it.
+
+To try changes before publishing them, run it locally:
 
 ```
 uv run python -m http.server 8000 -d web -b 127.0.0.1
@@ -370,8 +373,47 @@ Two fixes:
 While testing the real page locally after changing its code, empty Safari's
 cache first (Develop → Empty Caches) or use a Private window. GitHub Pages
 lets browsers cache files for only 10 minutes, so published updates reach
-students soon, but a student could briefly get a mix of old and new files. How
-to prevent that is a decision for when we publish.
+students soon, but a student could briefly get a mix of old and new files.
+Publishing stamps a version on the code files to prevent that (see
+"Publishing the Image maker").
+
+**Checking a stamped copy.** `tests/test_stamp.py` checks the stamping script.
+To run a stamped copy in a browser before publishing:
+
+```
+python3 tools/stamp_version.py web /tmp/site test
+uv run tools/browser_check.py FRAMES_FOLDER --web /tmp/site
+```
+
+On the 3,442 F4 frames, 2026-11-09, the stamped copy matched the Python
+reference exactly in headless Chrome.
+
+## Publishing the Image maker
+
+GitHub publishes `web/` to <https://briancroxall.github.io/digital_surrealism/>
+each time a change to `web/` reaches `main`
+(`.github/workflows/pages.yml`). Only `web/` is published, not the extractor,
+tests, or tools. The Actions tab on GitHub shows each publish and whether it
+worked; it can also be rerun from there ("Run workflow").
+
+**Version stamping.** GitHub Pages lets browsers reuse a file for up to 10
+minutes. Without help, a browser could combine a new `worker.js` with a saved
+older `summing.js` just after an update, which breaks the page (see "Browsers
+caching old code"). So while publishing, `tools/stamp_version.py` adds the
+commit ID to every script address in the published copy: `./worker.js`
+becomes `./worker.js?v=622036b`. A browser treats a new address as a new file,
+so it can't mix in a saved old one. The files in the repo aren't changed. If
+any script address is left unstamped, the publish stops with an error and the
+old version stays up.
+
+One case is left: a student who loaded the page in the 10 minutes before an
+update and uses it just after. The page says it couldn't start and to reload,
+and reloading fixes it. To avoid even that, don't push changes to `web/`
+during class.
+
+**Updating the published page.** Commit the change to `web/`, push to `main`,
+and check the Actions tab. When the run shows a green check, the new version
+is published.
 
 **The lab launcher** (`lab/Digital Surrealism.command`) is a short shell
 script. Things it does that aren't obvious:

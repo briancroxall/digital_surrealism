@@ -60,6 +60,7 @@ def test_whole_flow(client, dvd_film, tmp_path, monkeypatch):
     client.post("/api/extract")
     status = wait_for(client, "done")
     assert status["result"]["count"] == 20
+    assert status["image_maker_url"] == "https://briancroxall.github.io/digital_surrealism/"
     assert len(list((desktop / "dvd_frames").glob("frame_*.png"))) == 20
 
 

@@ -35,8 +35,8 @@ PORT = 5150  # avoids 5000, which macOS uses for AirPlay
 NUDGE_PIXELS = 2
 # Rough PNG size, from a real DVD: 3,442 frames at 853 x 360 took 1.2 GB.
 BYTES_PER_PIXEL = 1.15
-# Set once the Image maker is published (step 4).
-IMAGE_MAKER_URL = None
+# The Image maker, published on GitHub Pages from web/ (see README).
+IMAGE_MAKER_URL = "https://briancroxall.github.io/digital_surrealism/"
 
 
 # --- Finder dialogs (macOS) -------------------------------------------------

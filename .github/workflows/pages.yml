@@ -1,0 +1,40 @@
+# Publish the Image maker (web/) on GitHub Pages whenever main changes.
+# The published copy has the commit ID stamped into its script addresses
+# (tools/stamp_version.py); the files in the repo stay as they are.
+name: Publish the Image maker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "tools/stamp_version.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: # also allows a manual run from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One publish at a time; a newer push waits rather than cancelling one midway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - name: Copy web/ and stamp the version
+        run: python3 tools/stamp_version.py web _site "${GITHUB_SHA::7}"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

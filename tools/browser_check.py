@@ -2,6 +2,7 @@
 
     uv run tools/browser_check.py FRAMES_FOLDER
     uv run tools/browser_check.py FRAMES_FOLDER --browser manual
+    uv run tools/browser_check.py FRAMES_FOLDER --web STAMPED_COPY
 
 Serves the repository and the frames on http://127.0.0.1:8765, runs
 web/worker.js on the frames in a browser, saves the browser's four images
@@ -9,7 +10,9 @@ web/worker.js on the frames in a browser, saves the browser's four images
 tools/reference.py.
 
 By default it uses headless Chrome. With --browser manual it prints a URL to
-open yourself (for Safari or Firefox) and waits.
+open yourself (for Safari or Firefox) and waits. With --web it runs another
+copy of the page code instead of web/ (for example, one made by
+tools/stamp_version.py).
 """
 
 import argparse
@@ -34,7 +37,7 @@ PORT = 8765
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
-def make_handler(frames: list[Path], out_dir: Path, finished: threading.Event):
+def make_handler(frames: list[Path], out_dir: Path, finished: threading.Event, web: Path):
     by_name = {path.name: path for path in frames}
 
     class Handler(SimpleHTTPRequestHandler):
@@ -71,6 +74,12 @@ def make_handler(frames: list[Path], out_dir: Path, finished: threading.Event):
             if name in ("info", "error"):
                 finished.set()
 
+        def translate_path(self, path):
+            if path.startswith("/web/"):  # the page code, from --web if given
+                return super().translate_path("/" + path[len("/web/"):]).replace(
+                    str(REPO), str(web), 1)
+            return super().translate_path(path)
+
         def end_headers(self):
             # Always send the current page code, never a browser's cached copy.
             self.send_header("Cache-Control", "no-store")
@@ -89,17 +98,20 @@ def main() -> None:
     parser.add_argument("frames", type=Path)
     parser.add_argument("--browser", choices=["chrome", "manual"], default="chrome")
     parser.add_argument("--out", type=Path, help="folder for the browser's output")
+    parser.add_argument("--web", type=Path, default=REPO / "web",
+                        help="folder of page code to test (default: web/)")
     args = parser.parse_args()
 
     frames = frame_paths(args.frames)
     out_dir = args.out or Path(tempfile.mkdtemp(prefix="image-maker-check-"))
     out_dir.mkdir(parents=True, exist_ok=True)
     finished = threading.Event()
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(frames, out_dir, finished))
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(frames, out_dir, finished, args.web.resolve()))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{PORT}/tools/browser_check.html"
 
     print(f"{len(frames)} frames from {args.frames}")
+    print(f"Page code from {args.web}")
     browser = None
     if args.browser == "chrome":
         browser = subprocess.Popen(

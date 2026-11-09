@@ -1,14 +1,17 @@
 # digital_surrealism
 
+## Overview, Written by Brian Croxall
 Tools for students in *Introduction to Digital Humanities* to make "digital
 surrealism" images of a film, following Kevin L. Ferguson, ["Digital
 Surrealism: Visualizing Walt Disney Animation Studios"](https://dhq.digitalhumanities.org/vol/11/1/000276/000276.html)
 (*DHQ* 11.1, 2017) and ["To Cite or to Steal? When a Scholarly Project Turns Up in a Gallery"](https://hyperallergic.com/to-cite-or-to-steal-when-a-scholarly-project-turns-up-in-a-gallery/) (Hyperallergic, 30 June 2016). 
 
-Rather than using Ferguson's exact process, however, this small application uses `FFMPEG` to extract one frame from every two seconds of video (Ferguson uses Quicktime) and then uses JavaScript to create a summed image (Ferguson uses ImageJ). The summing process also produces bar codes of the film, which is an innovation that I believe I picked up from my colleague, Jeremy Browne. 
+Rather than using Ferguson's exact process, however, this small application uses `FFMPEG` to extract one frame from every two seconds of video (Ferguson uses QuickTime) and then uses JavaScript to create a summed image (Ferguson uses ImageJ). The summing process also produces barcodes of the film, which is an innovation that I believe I picked up from my colleague, [Jeremy Browne](https://hum.byu.edu/directory/jeremy-browne). Browne showed me how he had simplified Ferguson's process using FFMPEG and ImageMagick to achieve nearly identical results but without the overhead of GUI. 
 
-This application was developed using Claude Code. Since I have been using an assignment based on Ferguson's work for nine years, I'm well acquainted with the pain points for my students, and this instantiation will hopefully eliminate as many of those as possible.
+### AI Disclaimer
+This application was developed using Claude Code (Opus 5.5). I provided prompts to Claude Code based on the assignment and oversaw the decisions that were made along the way. Since I have been using an assignment (the 2025 version is [here](https://briancroxall.net/f25dh/assignments/many-eyes-make-light-work/)) based on Ferguson's work for nine years, I'm well acquainted with the pain points for my students, and this instantiation will hopefully eliminate as many of those as possible. 
 
+# Documentation, Written by Claude Code
 Students start with an MKV ripped by MakeMKV and end with:
 
 - a folder of frames (one every 2 seconds)

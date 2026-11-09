@@ -16,7 +16,7 @@ Students start with an MKV ripped by MakeMKV and end with:
 | Part | What it does | Status |
 |---|---|---|
 | Frame extractor (local, lab Macs) | MKV → cropped, square-pixel frames | Command line and web interface done; lab launcher next |
-| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Summed image done; barcodes and saving next |
+| Image maker (browser, GitHub Pages) | frames → summed image + barcodes | Done; publishing on GitHub Pages later |
 
 ## Frame extractor
 
@@ -171,8 +171,8 @@ cropping were matched, the pixels agreed closely. Frames made the older ways
 
 ## Image maker
 
-A web page (`web/`) that turns a folder of frames into a summed image (and,
-soon, barcodes). Everything happens in the browser on the student's own
+A web page (`web/`) that turns a folder of frames into a summed image and
+three barcodes. Everything happens in the browser on the student's own
 computer; no frames are uploaded. It will be published on GitHub Pages. Until
 then, run it locally:
 
@@ -184,9 +184,26 @@ then open <http://127.0.0.1:8000>. (Opening `index.html` straight from Finder
 doesn't work: browsers only run the page's background worker from a web
 address.) Press Control-C to stop the server.
 
-Choose the frames folder, then click **Make summed image**. The page uses
-every PNG in the folder, sorted by number (`frame_2` before `frame_10`), and
-stops with a message if the frames aren't all the same size.
+Choose the frames folder, then click **Make images**. The page uses every PNG
+in the folder, sorted by number (`frame_2` before `frame_10`), so filename
+order is film order. It stops with a message if the frames aren't all the same
+size. It reads each frame once and makes all four images in that one pass.
+
+**Saving.** Each image has its own Save button, and **Save all four…** saves
+them together, named after the frames folder:
+
+- `<folder>_summed.png`
+- `<folder>_barcode_horizontal.png`
+- `<folder>_barcode_vertical.png`
+- `<folder>_barcode_average.png`
+
+In Chrome and Edge, "Save all four" asks for a folder and writes the files
+straight into it, asking first if any of those files are already there. Safari,
+Firefox, and Brave don't allow pages to write into folders (Brave turns it
+off), so there the button downloads the four files to the Downloads folder.
+Safari may ask once whether to allow several downloads. Saving again downloads
+new copies (named `… (1).png`); the browser doesn't replace the earlier ones,
+and the page can't see what's already in Downloads to warn you.
 
 ### The summed image
 
@@ -233,6 +250,32 @@ pixel differed). The JPG files in the recipe only add compression error: on
 average 2.9 out of 255, 99% of values within 10, at most 20. The Image maker
 leaves that error out. (`-average` is an older name for
 `-evaluate-sequence Mean`.)
+
+### The barcodes
+
+One stripe per frame, in film order. For the F4 DVD frames from our extractor
+(3,442 frames of 853 × 360):
+
+| Barcode | Each stripe is | Size |
+|---|---|---|
+| Horizontal | the frame's centre column, left (start) to right (end) | 3,442 × 360 |
+| Vertical | the frame's centre row, top (start) to bottom (end) | 853 × 3,442 |
+| Average colour | the frame's average colour, left to right | 3,442 × 360 |
+
+Choices built in:
+
+- **Not stretched.** Unlike the summed image, the barcodes show the frames'
+  own colours. Slices come from single frames, so they already have full
+  contrast. The average-colour barcode looks darker and duller than the summed
+  image, but it shows each film's real colours over time, so barcodes of
+  different films can be compared directly.
+- **"Centre" when the size is even.** A frame 720 wide has two middle columns
+  (360 and 361, counting from 1); the barcode uses the right-hand one, 361.
+  An odd size has a true middle (column 427 of 853). Rows work the same way:
+  row 181 of 360 (the lower of the two middle rows).
+- **Average colour** is the plain average of the frame's red, green, and blue
+  values, the same arithmetic as the summed image, rounded to whole numbers
+  (halves round up).
 
 ### Why the Image maker ignores colour labels
 
@@ -289,17 +332,34 @@ uv run tools/browser_check.py FRAMES_FOLDER
 ```
 
 This runs the page's real code (`web/worker.js`) in headless Chrome and
-compares the result pixel by pixel. Add `--browser manual` to get a web address
-to open in Safari or Firefox instead. On the 3,442 F4 frames (HandBrake
-frames, labelled with a colour standard), Chrome, Firefox, and Safari each
-matched the Python reference exactly (no pixel differed). Reading and summing
-took about 14 seconds in Chrome and Firefox and 27 in Safari. The script also
-reports how many frames had a colour label removed.
+compares all four images with the Python reference pixel by pixel. Add
+`--browser manual` to get a web address to open in Safari or Firefox instead.
+It also reports how many frames had a colour label removed.
 
-The checking server tells browsers not to cache, and the check page loads the
-worker from a new address each run, because Safari otherwise kept running an
-old cached copy of `web/worker.js` after it was changed. The same can happen
-with the real page while testing locally: in Safari, use Develop → Empty
-Caches (or a Private window) after changing the page's code. GitHub Pages lets
-browsers cache files for only 10 minutes, so students will get updates soon
-after they're published.
+`tests/test_reference.py` includes a barcode example worked out by hand: five
+4 × 3 frames (four solid colours, and one with a marked centre column, a marked
+centre row, and grey pixels in the left-hand middle column that must not be
+picked). The browser gave the same answers.
+
+On the 3,442 F4 frames (HandBrake frames, labelled with a colour standard),
+2026-11-07: Chrome, Firefox, and Safari each matched the Python reference
+exactly on all four images (no pixel differed). Making all four took about
+18–19 seconds in Chrome and Firefox and 29 in Safari.
+
+**Browsers caching old code.** Browsers keep copies of a page's files. After
+the page's code changes, Safari kept using its old copy of `summing.js` with
+the new `worker.js`. The worker then couldn't start ("Importing binding name
+'BarcodeMaker' is not found"), and the page waited forever with no message.
+Two fixes:
+
+- The checking server tells browsers not to cache, and the check page loads
+  the page code from a new address each run (`/fresh/<number>/web/...`), so
+  every file is fetched fresh.
+- The real page now says when its worker can't start and suggests reloading
+  or emptying the cache, instead of waiting silently.
+
+While testing the real page locally after changing its code, empty Safari's
+cache first (Develop → Empty Caches) or use a Private window. GitHub Pages
+lets browsers cache files for only 10 minutes, so published updates reach
+students soon, but a student could briefly get a mix of old and new files. How
+to prevent that is a decision for when we publish.

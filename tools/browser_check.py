@@ -4,8 +4,9 @@
     uv run tools/browser_check.py FRAMES_FOLDER --browser manual
 
 Serves the repository and the frames on http://127.0.0.1:8765, runs
-web/worker.js on the frames in a browser, saves the browser's summed image,
-and compares it pixel by pixel with tools/reference.py.
+web/worker.js on the frames in a browser, saves the browser's four images
+(summed image and three barcodes), and compares each pixel by pixel with
+tools/reference.py.
 
 By default it uses headless Chrome. With --browser manual it prints a URL to
 open yourself (for Safari or Firefox) and waits.
@@ -26,7 +27,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from reference import frame_paths, summed_image  # noqa: E402
+from reference import barcodes, frame_paths, summed_image  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 PORT = 8765
@@ -57,6 +58,8 @@ def make_handler(frames: list[Path], out_dir: Path, finished: threading.Event):
                 self.end_headers()
                 self.wfile.write(path.read_bytes())
             else:
+                if self.path.startswith("/fresh/"):  # /fresh/<number>/web/... -> /web/...
+                    self.path = "/" + self.path.split("/", 3)[3]
                 super().do_GET()
 
         def do_POST(self):
@@ -117,19 +120,25 @@ def main() -> None:
         sys.exit(f"The browser reported an error: {(out_dir / 'error').read_text()}")
 
     info = json.loads((out_dir / "info").read_text())
-    browser_image = np.asarray(Image.open(out_dir / "summed.png").convert("RGB"), dtype=int)
-    reference, ranges = summed_image(frames)
-    diff = np.abs(browser_image - reference.astype(int))
+    reference_summed, ranges = summed_image(frames)
+    references = {"summed": reference_summed, **barcodes(frames)}
     print(f"Browser: {info['userAgent']}")
-    print(f"Browser time (reading + summing, after loading files): {info['seconds']:.1f} s")
-    print(f"Frames summed: {info['count']}, image {browser_image.shape[1]} x {browser_image.shape[0]}")
+    print(f"Browser time (reading + making images, after loading files): {info['seconds']:.1f} s")
+    print(f"Frames used: {info['count']}")
     print(f"Frames with a colour label removed: {info.get('labelled', 'not reported (old page code?)')}")
     for name, got, want in zip("RGB", info["ranges"], ranges):
         print(f"  {name} range before stretching: browser {got['low']:.3f}-{got['high']:.3f}, "
               f"Python {want[0]:.3f}-{want[1]:.3f}")
-    print(f"Pixel values that differ: {np.count_nonzero(diff)} of {diff.size}; "
-          f"largest difference {diff.max()} (out of 255)")
-    print(f"Browser's image: {out_dir / 'summed.png'}")
+    for kind, reference in references.items():
+        got = np.asarray(Image.open(out_dir / f"{kind}.png").convert("RGB"), dtype=int)
+        if got.shape != reference.shape:
+            print(f"{kind:>10}: SIZE DIFFERS, browser {got.shape[1]} x {got.shape[0]}, "
+                  f"Python {reference.shape[1]} x {reference.shape[0]}")
+            continue
+        diff = np.abs(got - reference.astype(int))
+        print(f"{kind:>10}: {got.shape[1]} x {got.shape[0]}, values that differ: "
+              f"{np.count_nonzero(diff)} of {diff.size}, largest difference {diff.max()}")
+    print(f"Browser's images: {out_dir}")
 
 
 if __name__ == "__main__":

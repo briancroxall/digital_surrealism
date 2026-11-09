@@ -42,3 +42,22 @@ def summed_image(paths: list[Path]) -> tuple[np.ndarray, list[tuple[float, float
         stretched = (values - low) / (high - low) * 255 if high > low else values
         out[..., channel] = np.floor(stretched + 0.5)
     return out.astype(np.uint8), ranges
+
+
+def barcodes(paths: list[Path]) -> dict[str, np.ndarray]:
+    """The three barcodes (uint8 RGB), not stretched. Same rules as web/summing.js:
+    centre = floor(size / 2), counting from 0 (column 361 of 720 counting from 1)."""
+    columns, rows, averages = [], [], []
+    for path in paths:
+        frame = read(path)
+        height, width, _ = frame.shape
+        columns.append(frame[:, width // 2])
+        rows.append(frame[height // 2, :])
+        averages.append(frame.reshape(-1, 3).mean(axis=0))
+    height = columns[0].shape[0]
+    average = np.floor(np.array(averages) + 0.5)
+    return {
+        "horizontal": np.stack(columns, axis=1).astype(np.uint8),  # height x frames
+        "vertical": np.stack(rows, axis=0).astype(np.uint8),  # frames x width
+        "average": np.repeat(average[np.newaxis], height, axis=0).astype(np.uint8),
+    }

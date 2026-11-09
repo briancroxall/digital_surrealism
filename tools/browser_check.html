@@ -5,7 +5,7 @@
 <p id="status">Running…</p>
 <script type="module">
 // Runs the Image maker's real worker on frames served by browser_check.py,
-// then posts the summed image back so it can be compared with tools/reference.py.
+// then posts the four images back so they can be compared with tools/reference.py.
 // The only difference from the page: frames are fetched instead of chosen.
 const status = (text) => { document.getElementById("status").textContent = text; };
 const report = (path, body) => fetch(path, {method: "POST", body});
@@ -15,8 +15,13 @@ try {
   const files = [];
   for (const name of names) files.push(await (await fetch(`/frames/${encodeURIComponent(name)}`)).blob());
   const started = performance.now();
-  // A fresh address each run, so a browser never reuses an old cached worker.
-  const worker = new Worker(`/web/worker.js?run=${Date.now()}`, {type: "module"});
+  // Load the page code from a fresh address each run (/fresh/<number>/web/...),
+  // so a browser can't reuse an old cached copy of the worker or the files it
+  // imports. Safari did, which mixed old and new code.
+  const worker = new Worker(`/fresh/${Date.now()}/web/worker.js`, {type: "module"});
+  worker.onerror = async (event) => {
+    await report("/error", `The worker didn't start: ${event.message || "no details given"}`);
+  };
   worker.onmessage = async ({data}) => {
     if (data.type === "progress") {
       status(`${data.done} of ${data.total}`);
@@ -24,7 +29,7 @@ try {
       await report("/error", data.message);
     } else if (data.type === "done") {
       const seconds = (performance.now() - started) / 1000;
-      await report("/summed.png", data.png);
+      for (const [kind, png] of Object.entries(data.images)) await report(`/${kind}.png`, png);
       await report("/info", JSON.stringify({seconds, count: data.count, ranges: data.ranges,
                                             labelled: data.labelled,
                                             userAgent: navigator.userAgent}));
